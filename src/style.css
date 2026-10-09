@@ -1,0 +1,177 @@
+
+/* ==========================================================================
+   Global Styles
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  background-color: #101027;
+  color: white;
+}
+
+/* Center the game within the browser window. */
+#app {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+/* ==========================================================================
+   Game Layout
+   ========================================================================== */
+
+.game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+
+  /* Leave a small margin on narrow browser windows. */
+  max-width: calc(100vw - 32px);
+  min-width: 0;
+}
+
+.game h1 {
+  margin: 0;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #f5f5f5;
+  text-shadow: 2px 3px 0 #394b32;
+}
+
+
+/* ==========================================================================
+   Game Board
+   ========================================================================== */
+
+canvas {
+  display: block;
+
+  /*
+   * JavaScript controls the canvas's displayed dimensions.
+   * The maximum width prevents it from exceeding the board's
+   * logical width.
+   */
+  max-width: var(--board-width);
+}
+
+
+/* ==========================================================================
+   Top Controls - Flag Counter, Timer, and Sound
+   ========================================================================== */
+
+.game-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 60px;
+  width: 100%;
+  margin: 0;
+}
+
+#flagCounter,
+#timer {
+  font-size: 20px;
+  font-weight: bold;
+  color: white;
+}
+
+#soundButton {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+#soundButton:hover {
+  opacity: 0.7;
+}
+
+
+/* ==========================================================================
+   Bottom Controls - New Game and Difficulty
+   ========================================================================== */
+
+.difficulty-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  color: white;
+}
+
+/* Shared styling for the main game buttons and dropdown. */
+#newGameButton,
+#gameOverOkButton,
+#difficultySelect {
+  background: #454568;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+#newGameButton {
+  padding: 8px 16px;
+}
+
+#difficultySelect {
+  padding: 8px 12px;
+}
+
+#newGameButton:hover,
+#gameOverOkButton:hover {
+  background: #5a5a80;
+}
+
+
+/* ==========================================================================
+   Game Over Popup
+   ========================================================================== */
+
+/* Darkens the page and centers the win/loss dialog. */
+.game-over-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 100;
+}
+
+/* JavaScript toggles this class when showing or hiding the popup. */
+.game-over-overlay.hidden {
+  display: none;
+}
+
+.game-over-popup {
+  background: #252540;
+  color: white;
+  padding: 32px 48px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.game-over-popup h2 {
+  margin: 0 0 24px;
+  font-size: 28px;
+}
+
+#gameOverOkButton {
+  padding: 10px 32px;
+}
