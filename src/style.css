@@ -85,6 +85,21 @@ canvas {
   color: white;
 }
 
+/* Flag counter also acts as the Reveal/Flag mode toggle. */
+#flagCounter {
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+/* Highlight the counter when Flag mode is active. */
+#flagCounter.active {
+  background: rgba(170, 215, 81, 0.2);
+  border-color: #AAD751;
+}
+
 #soundButton {
   background: none;
   border: none;

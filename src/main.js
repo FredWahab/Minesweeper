@@ -10,7 +10,7 @@ document.querySelector('#app').innerHTML = `
     <h1>Minesweeper</h1>
 
     <div class="game-controls">
-      <span id="flagCounter">🚩 40</span>
+      <button id="flagCounter" type="button" title="Switch to Flag mode" aria-pressed="false">🚩 40</button>
       <span id="timer">⏱️ 0</span>
       <button id="soundButton" title="Mute sound" aria-label="Mute sound">🔊</button>
     </div>
@@ -82,6 +82,7 @@ const board = [];
 let flagsRemaining = mineCount;
 let gameOver = false;
 let firstClick = true;
+let flagMode = false; // False = reveal cells; true = place/remove flags.
 let hoveredRow = -1;
 let hoveredCol = -1;
 
@@ -96,6 +97,16 @@ let audioContext = null;
 
 function updateFlagCounter() {
   flagCounter.textContent = `🚩 ${flagsRemaining}`;
+}
+
+function updateFlagMode() {
+  flagCounter.classList.toggle('active', flagMode);
+  flagCounter.setAttribute('aria-pressed', String(flagMode));
+  flagCounter.title = flagMode
+    ? 'Switch to Reveal mode'
+    : 'Switch to Flag mode';
+
+  canvas.style.cursor = flagMode ? 'crosshair' : 'default';
 }
 
 function updateTimer() {
@@ -221,23 +232,60 @@ function placeMines(numMines) {
 }
 
 function relocateMine(row, col) {
-  if (!board[row][col].isMine) return;
+  // Protect the first clicked cell and all valid surrounding cells.
+  const safeCells = new Set();
 
-  // Move a mine away from the first clicked cell, keeping the mine count intact.
-  board[row][col].isMine = false;
+  for (let r = -1; r <= 1; r++) {
+    for (let c = -1; c <= 1; c++) {
+      const newRow = row + r;
+      const newCol = col + c;
 
-  let newRow;
-  let newCol;
+      if (
+        newRow >= 0 &&
+        newRow < rows &&
+        newCol >= 0 &&
+        newCol < cols
+      ) {
+        safeCells.add(newRow * cols + newCol);
+      }
+    }
+  }
 
-  do {
-    newRow = Math.floor(Math.random() * rows);
-    newCol = Math.floor(Math.random() * cols);
-  } while (
-    board[newRow][newCol].isMine ||
-    (newRow === row && newCol === col)
-  );
+  // Collect mines from the protected area.
+  let minesToMove = 0;
 
-  board[newRow][newCol].isMine = true;
+  for (const index of safeCells) {
+    const safeRow = Math.floor(index / cols);
+    const safeCol = index % cols;
+
+    if (board[safeRow][safeCol].isMine) {
+      board[safeRow][safeCol].isMine = false;
+      minesToMove++;
+    }
+  }
+
+  // Find unmined cells outside the protected area.
+  const availableCells = [];
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (
+        !safeCells.has(r * cols + c) &&
+        !board[r][c].isMine
+      ) {
+        availableCells.push(board[r][c]);
+      }
+    }
+  }
+
+  // Randomly relocate each mine without creating duplicates.
+  for (let i = 0; i < minesToMove; i++) {
+    const randomIndex = Math.floor(Math.random() * availableCells.length);
+    const [cell] = availableCells.splice(randomIndex, 1);
+    cell.isMine = true;
+  }
+
+  // Recalculate numbers after moving the mines.
   countAdjacentMines();
 }
 
@@ -336,6 +384,7 @@ function newGame() {
   flagsRemaining = mineCount;
   gameOver = false;
   firstClick = true;
+  flagMode = false;
   secondsElapsed = 0;
 
   createBoard();
@@ -344,6 +393,7 @@ function newGame() {
 
   updateTimer();
   updateFlagCounter();
+  updateFlagMode();
   hideGameOverPopup();
   draw();
 }
@@ -467,6 +517,12 @@ function getCellFromMouse(event) {
 function handleClick(event) {
   if (gameOver) return;
 
+  // In Flag mode, a normal click places or removes a flag.
+  if (flagMode) {
+    toggleFlag(event);
+    return;
+  }
+
   const { row, col } = getCellFromMouse(event);
 
   if (row < 0 || row >= rows || col < 0 || col >= cols) return;
@@ -498,7 +554,7 @@ function handleClick(event) {
   draw();
 }
 
-function handleRightClick(event) {
+function toggleFlag(event) {
   // Suppress the browser's context menu, even after the game ends.
   event.preventDefault();
 
@@ -539,8 +595,13 @@ soundButton.addEventListener('click', () => {
   soundButton.setAttribute('aria-label', soundButton.title);
 });
 
+flagCounter.addEventListener('click', () => {
+  flagMode = !flagMode;
+  updateFlagMode();
+});
+
 canvas.addEventListener('click', handleClick);
-canvas.addEventListener('contextmenu', handleRightClick);
+canvas.addEventListener('contextmenu', toggleFlag);
 
 canvas.addEventListener('mousemove', (event) => {
   const { row, col } = getCellFromMouse(event);
