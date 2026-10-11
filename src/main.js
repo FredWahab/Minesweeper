@@ -2,7 +2,7 @@
 import './style.css';
 
 // -----------------------------------------------------------------------------
-// Interface
+// 1. Interface
 // -----------------------------------------------------------------------------
 
 document.querySelector('#app').innerHTML = `
@@ -10,22 +10,49 @@ document.querySelector('#app').innerHTML = `
     <h1>Minesweeper</h1>
 
     <div class="game-controls">
-      <button id="flagCounter" type="button" title="Switch to Flag mode" aria-pressed="false">🚩 40</button>
-      <span id="timer">⏱️ 0</span>
-      <button id="soundButton" title="Mute sound" aria-label="Mute sound">🔊</button>
+      <button
+        id="flagCounter"
+        type="button"
+        title="Switch to Flag mode"
+        aria-pressed="false"
+      >🚩 40</button>
+
+      <button
+        id="timer"
+        type="button"
+        title="Pause game"
+        aria-pressed="false"
+      >⏱️ 00:00</button>
+
+      <button
+        id="soundButton"
+        type="button"
+        title="Mute sound"
+        aria-label="Mute sound"
+      >🔊</button>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 
+    <!-- Pause popup: uses the existing win/loss popup styling. -->
+    <div id="pauseOverlay" class="game-over-overlay hidden">
+      <div class="game-over-popup">
+        <h2>Paused</h2>
+        <button id="resumeButton" type="button">Resume Game</button>
+      </div>
+    </div>
+
+    <!-- Win/loss popup. -->
     <div id="gameOverOverlay" class="game-over-overlay hidden">
       <div class="game-over-popup">
         <h2 id="gameOverMessage">You Win!</h2>
-        <button id="gameOverOkButton">OK</button>
+        <button id="gameOverOkButton" type="button">OK</button>
       </div>
     </div>
 
     <div class="difficulty-controls">
-      <button id="newGameButton">New Game</button>
+      <button id="newGameButton" type="button">New Game</button>
+
       <label for="difficultySelect">Difficulty:</label>
       <select id="difficultySelect">
         <option value="beginner">Beginner</option>
@@ -36,19 +63,26 @@ document.querySelector('#app').innerHTML = `
   </div>
 `;
 
+// Cache DOM references once rather than searching repeatedly.
 const canvas = document.querySelector('#gameCanvas');
 const ctx = canvas.getContext('2d');
+
 const flagCounter = document.querySelector('#flagCounter');
 const timerDisplay = document.querySelector('#timer');
 const soundButton = document.querySelector('#soundButton');
+
 const newGameButton = document.querySelector('#newGameButton');
 const difficultySelect = document.querySelector('#difficultySelect');
+
+const pauseOverlay = document.querySelector('#pauseOverlay');
+const resumeButton = document.querySelector('#resumeButton');
+
 const gameOverOverlay = document.querySelector('#gameOverOverlay');
 const gameOverMessage = document.querySelector('#gameOverMessage');
 const gameOverOkButton = document.querySelector('#gameOverOkButton');
 
 // -----------------------------------------------------------------------------
-// Configuration and game state
+// 2. Configuration and game state
 // -----------------------------------------------------------------------------
 
 const difficulties = {
@@ -57,10 +91,11 @@ const difficulties = {
   expert: { rows: 16, cols: 30, mines: 99 }
 };
 
-const cellSize = 40; // Logical pixels per cell, before responsive display scaling.
+// Each cell occupies 40 logical Canvas pixels.
+const cellSize = 40;
 
 const numberColors = [
-  null,       // 0: no number
+  null,       // 0: empty
   '#0000FF',  // 1: blue
   '#008000',  // 2: green
   '#FF0000',  // 3: red
@@ -72,27 +107,38 @@ const numberColors = [
 ];
 
 let currentDifficulty = 'intermediate';
+
 let rows = difficulties[currentDifficulty].rows;
 let cols = difficulties[currentDifficulty].cols;
 let mineCount = difficulties[currentDifficulty].mines;
+
 let canvasWidth = cols * cellSize;
 let canvasHeight = rows * cellSize;
 
+// Board data.
 const board = [];
 let flagsRemaining = mineCount;
+
+// Gameplay state.
 let gameOver = false;
 let firstClick = true;
-let flagMode = false; // False = reveal cells; true = place/remove flags.
+let flagMode = false;
+let isPaused = false;
+
+// Mouse hover state.
 let hoveredRow = -1;
 let hoveredCol = -1;
 
+// Timer state.
 let secondsElapsed = 0;
 let timerInterval = null;
+
+// Audio state.
 let soundMuted = false;
 let audioContext = null;
 
 // -----------------------------------------------------------------------------
-// Status displays and timer
+// 3. Interface updates
 // -----------------------------------------------------------------------------
 
 function updateFlagCounter() {
@@ -102,6 +148,7 @@ function updateFlagCounter() {
 function updateFlagMode() {
   flagCounter.classList.toggle('active', flagMode);
   flagCounter.setAttribute('aria-pressed', String(flagMode));
+
   flagCounter.title = flagMode
     ? 'Switch to Reveal mode'
     : 'Switch to Flag mode';
@@ -110,11 +157,29 @@ function updateFlagMode() {
 }
 
 function updateTimer() {
-  timerDisplay.textContent = `⏱️ ${secondsElapsed}`;
+  const minutes = Math.floor(secondsElapsed / 60);
+  const seconds = secondsElapsed % 60;
+
+  const formattedMinutes = String(minutes).padStart(2, '0');
+  const formattedSeconds = String(seconds).padStart(2, '0');
+
+  timerDisplay.textContent = `⏱️ ${formattedMinutes}:${formattedSeconds}`;
 }
 
+function updatePauseButton() {
+  timerDisplay.classList.toggle('active', isPaused);
+  timerDisplay.setAttribute('aria-pressed', String(isPaused));
+
+  timerDisplay.title = isPaused ? 'Resume game' : 'Pause game';
+}
+
+// -----------------------------------------------------------------------------
+// 4. Timer and pause controls
+// -----------------------------------------------------------------------------
+
 function startTimer() {
-  if (timerInterval !== null) return;
+  // Prevent multiple intervals from running simultaneously.
+  if (timerInterval !== null || isPaused || gameOver) return;
 
   timerInterval = setInterval(() => {
     secondsElapsed++;
@@ -127,6 +192,47 @@ function stopTimer() {
   timerInterval = null;
 }
 
+function pauseGame() {
+  // A game cannot be paused before its first reveal or after it ends.
+  if (firstClick || gameOver || isPaused) return;
+
+  isPaused = true;
+  stopTimer();
+
+  // Clear hover state so no tile remains highlighted after resuming.
+  hoveredRow = -1;
+  hoveredCol = -1;
+
+  updatePauseButton();
+  draw();
+
+  pauseOverlay.classList.remove('hidden');
+}
+
+function resumeGame() {
+  if (!isPaused) return;
+
+  isPaused = false;
+
+  pauseOverlay.classList.add('hidden');
+  updatePauseButton();
+
+  draw();
+  startTimer();
+}
+
+function togglePause() {
+  if (isPaused) {
+    resumeGame();
+  } else {
+    pauseGame();
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 5. Win/loss popups
+// -----------------------------------------------------------------------------
+
 function showGameOverPopup(won) {
   gameOverMessage.textContent = won ? 'You Win!' : 'You Lose!';
   gameOverOverlay.classList.remove('hidden');
@@ -137,13 +243,18 @@ function hideGameOverPopup() {
 }
 
 // -----------------------------------------------------------------------------
-// Audio (generated with the Web Audio API; no sound files required)
+// 6. Audio
 // -----------------------------------------------------------------------------
+
+// Sounds are synthesized with the Web Audio API.
+// No external sound files are required.
 
 function playSound(frequency = 600, duration = 0.05) {
   if (soundMuted) return;
 
-  if (!audioContext) audioContext = new AudioContext();
+  if (!audioContext) {
+    audioContext = new AudioContext();
+  }
 
   const oscillator = audioContext.createOscillator();
   const gain = audioContext.createGain();
@@ -167,13 +278,16 @@ function playSound(frequency = 600, duration = 0.05) {
 function playLossSound() {
   if (soundMuted) return;
 
-  if (!audioContext) audioContext = new AudioContext();
+  if (!audioContext) {
+    audioContext = new AudioContext();
+  }
 
   const oscillator = audioContext.createOscillator();
   const gain = audioContext.createGain();
   const now = audioContext.currentTime;
 
   oscillator.type = 'sawtooth';
+
   oscillator.frequency.setValueAtTime(250, now);
   oscillator.frequency.exponentialRampToValueAtTime(60, now + 0.4);
 
@@ -190,14 +304,14 @@ function playLossSound() {
 function playWinSound() {
   if (soundMuted) return;
 
-  // Ascending notes form a short victory melody.
+  // Play four ascending notes.
   [523, 659, 784, 1047].forEach((frequency, index) => {
     setTimeout(() => playSound(frequency, 0.15), index * 150);
   });
 }
 
 // -----------------------------------------------------------------------------
-// Board creation and mine placement
+// 7. Board creation and mine placement
 // -----------------------------------------------------------------------------
 
 function createBoard() {
@@ -231,10 +345,12 @@ function placeMines(numMines) {
   }
 }
 
+// Guarantee that the first revealed cell and its neighbors are safe.
+// Any mines in that area are relocated elsewhere on the board.
 function relocateMine(row, col) {
-  // Protect the first clicked cell and all valid surrounding cells.
   const safeCells = new Set();
 
+  // Identify the 3x3 protected area around the first reveal.
   for (let r = -1; r <= 1; r++) {
     for (let c = -1; c <= 1; c++) {
       const newRow = row + r;
@@ -251,7 +367,7 @@ function relocateMine(row, col) {
     }
   }
 
-  // Collect mines from the protected area.
+  // Remove mines from the protected area.
   let minesToMove = 0;
 
   for (const index of safeCells) {
@@ -264,7 +380,7 @@ function relocateMine(row, col) {
     }
   }
 
-  // Find unmined cells outside the protected area.
+  // Collect eligible destination cells outside the protected area.
   const availableCells = [];
 
   for (let r = 0; r < rows; r++) {
@@ -278,14 +394,15 @@ function relocateMine(row, col) {
     }
   }
 
-  // Randomly relocate each mine without creating duplicates.
+  // Relocate mines randomly without duplicating destinations.
   for (let i = 0; i < minesToMove; i++) {
     const randomIndex = Math.floor(Math.random() * availableCells.length);
     const [cell] = availableCells.splice(randomIndex, 1);
+
     cell.isMine = true;
   }
 
-  // Recalculate numbers after moving the mines.
+  // Mine positions changed, so adjacent counts must be recalculated.
   countAdjacentMines();
 }
 
@@ -321,32 +438,39 @@ function countAdjacentMines() {
 }
 
 // -----------------------------------------------------------------------------
-// Game rules
+// 8. Game rules
 // -----------------------------------------------------------------------------
 
 function revealCell(row, col) {
+  // Ignore coordinates outside the board.
   if (row < 0 || row >= rows || col < 0 || col >= cols) return;
 
   const cell = board[row][col];
 
+  // Revealed and flagged cells cannot be revealed again.
   if (cell.isRevealed || cell.isFlagged) return;
 
   cell.isRevealed = true;
 
+  // Revealing a mine ends the game.
   if (cell.isMine) {
     gameOver = true;
     stopTimer();
+
     playLossSound();
     revealAllMines();
     showGameOverPopup(false);
+
     return;
   }
 
-  // Empty cells recursively reveal neighboring cells until numbers form a border.
+  // Empty cells recursively reveal their neighbors.
+  // Numbered cells form the boundary of the revealed area.
   if (cell.adjacentMines === 0) {
     for (let r = -1; r <= 1; r++) {
       for (let c = -1; c <= 1; c++) {
         if (r === 0 && c === 0) continue;
+
         revealCell(row + r, col + c);
       }
     }
@@ -354,12 +478,15 @@ function revealCell(row, col) {
 }
 
 function checkWin() {
-  // A win requires revealing every safe cell; flags are not required.
+  // Winning requires revealing every non-mine cell.
+  // Flags are optional.
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const cell = board[row][col];
 
-      if (!cell.isMine && !cell.isRevealed) return false;
+      if (!cell.isMine && !cell.isRevealed) {
+        return false;
+      }
     }
   }
 
@@ -380,26 +507,40 @@ function newGame() {
   playSound(750, 0.1);
   stopTimer();
 
+  // Reset the board.
   board.length = 0;
   flagsRemaining = mineCount;
+
+  // Reset gameplay state.
   gameOver = false;
   firstClick = true;
   flagMode = false;
+  isPaused = false;
+
+  // Reset hover and timer state.
+  hoveredRow = -1;
+  hoveredCol = -1;
   secondsElapsed = 0;
 
+  // Generate a fresh board.
   createBoard();
   placeMines(mineCount);
   countAdjacentMines();
 
+  // Reset controls and close any open popups.
   updateTimer();
   updateFlagCounter();
   updateFlagMode();
+  updatePauseButton();
+
+  pauseOverlay.classList.add('hidden');
   hideGameOverPopup();
+
   draw();
 }
 
 // -----------------------------------------------------------------------------
-// Canvas sizing and rendering
+// 9. Responsive Canvas sizing
 // -----------------------------------------------------------------------------
 
 function resizeCanvas() {
@@ -408,7 +549,7 @@ function resizeCanvas() {
   const availableWidth = window.innerWidth - 32;
   const availableHeight = window.innerHeight - 220;
 
-  // Preserve the board's aspect ratio while fitting the available viewport.
+  // Scale the displayed board to fit without changing its aspect ratio.
   const scale = Math.min(
     1,
     availableWidth / canvasWidth,
@@ -418,21 +559,28 @@ function resizeCanvas() {
   const displayWidth = Math.floor(canvasWidth * scale);
   const displayHeight = Math.floor(canvasHeight * scale);
 
-  // Internal resolution remains full size for sharp canvas text and graphics.
+  // Maintain full logical drawing resolution for sharp graphics.
   canvas.width = Math.round(canvasWidth * dpr);
   canvas.height = Math.round(canvasHeight * dpr);
 
   canvas.style.width = `${displayWidth}px`;
   canvas.style.height = `${displayHeight}px`;
   canvas.style.aspectRatio = `${cols} / ${rows}`;
+
   canvas.style.setProperty('--board-width', `${canvasWidth}px`);
 
+  // Scale the drawing context for high-density screens.
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   draw();
 }
 
+// -----------------------------------------------------------------------------
+// 10. Canvas rendering
+// -----------------------------------------------------------------------------
+
 function draw() {
+  // Board background.
   ctx.fillStyle = '#252545';
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
@@ -442,18 +590,20 @@ function draw() {
 
       const x = col * cellSize;
       const y = row * cellSize;
+
       const isLightTile = (row + col) % 2 === 0;
 
-      // Revealed cells use a gray checkerboard; hidden cells use green.
+      // Revealed cells are gray; hidden cells are green.
       if (cell.isRevealed) {
         ctx.fillStyle = isLightTile ? '#c3c2c2' : '#a7a6a6';
       } else {
         ctx.fillStyle = isLightTile ? '#AAD751' : '#94bf44';
       }
 
-      // Only highlight unrevealed, unflagged cells while the game is active.
+      // Highlight hovered cells only during active gameplay.
       if (
         !gameOver &&
+        !isPaused &&
         !cell.isRevealed &&
         !cell.isFlagged &&
         row === hoveredRow &&
@@ -464,11 +614,17 @@ function draw() {
 
       ctx.fillRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
 
-      if (cell.isRevealed && !cell.isMine && cell.adjacentMines > 0) {
+      // Draw adjacent mine counts.
+      if (
+        cell.isRevealed &&
+        !cell.isMine &&
+        cell.adjacentMines > 0
+      ) {
         ctx.fillStyle = numberColors[cell.adjacentMines];
         ctx.font = 'bold 20px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+
         ctx.fillText(
           cell.adjacentMines,
           x + cellSize / 2,
@@ -476,26 +632,38 @@ function draw() {
         );
       }
 
+      // Draw revealed mines.
       if (cell.isRevealed && cell.isMine) {
         ctx.font = '24px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('💣', x + cellSize / 2, y + cellSize / 2);
+
+        ctx.fillText(
+          '💣',
+          x + cellSize / 2,
+          y + cellSize / 2
+        );
       }
 
+      // Draw flags on hidden cells.
       if (cell.isFlagged && !cell.isRevealed) {
         ctx.fillStyle = 'white';
         ctx.font = '24px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('🚩', x + cellSize / 2, y + cellSize / 2);
+
+        ctx.fillText(
+          '🚩',
+          x + cellSize / 2,
+          y + cellSize / 2
+        );
       }
     }
   }
 }
 
 // -----------------------------------------------------------------------------
-// Mouse input
+// 11. Mouse and touch input
 // -----------------------------------------------------------------------------
 
 function getCellFromMouse(event) {
@@ -504,7 +672,7 @@ function getCellFromMouse(event) {
   const mouseX = event.clientX - rect.left;
   const mouseY = event.clientY - rect.top;
 
-  // Convert displayed CSS pixels back into the board's logical coordinates.
+  // Convert displayed CSS pixels into logical board coordinates.
   const scaleX = canvasWidth / rect.width;
   const scaleY = canvasHeight / rect.height;
 
@@ -515,9 +683,10 @@ function getCellFromMouse(event) {
 }
 
 function handleClick(event) {
-  if (gameOver) return;
+  // Gameplay is disabled after game over and while paused.
+  if (gameOver || isPaused) return;
 
-  // In Flag mode, a normal click places or removes a flag.
+  // In Flag mode, normal clicks toggle flags instead of revealing cells.
   if (flagMode) {
     toggleFlag(event);
     return;
@@ -529,6 +698,7 @@ function handleClick(event) {
 
   const cell = board[row][col];
 
+  // Start the timer only when a valid hidden, unflagged cell is revealed.
   if (!cell.isRevealed && !cell.isFlagged) {
     if (firstClick) {
       relocateMine(row, col);
@@ -544,9 +714,11 @@ function handleClick(event) {
 
   revealCell(row, col);
 
+  // Check for victory after revealing cells.
   if (!gameOver && checkWin()) {
     gameOver = true;
     stopTimer();
+
     playWinSound();
     showGameOverPopup(true);
   }
@@ -555,10 +727,10 @@ function handleClick(event) {
 }
 
 function toggleFlag(event) {
-  // Suppress the browser's context menu, even after the game ends.
+  // Prevent the browser's context menu on right-click.
   event.preventDefault();
 
-  if (gameOver) return;
+  if (gameOver || isPaused) return;
 
   const { row, col } = getCellFromMouse(event);
 
@@ -566,6 +738,7 @@ function toggleFlag(event) {
 
   const cell = board[row][col];
 
+  // Revealed cells cannot be flagged.
   if (cell.isRevealed) return;
 
   if (cell.isFlagged) {
@@ -584,9 +757,10 @@ function toggleFlag(event) {
 }
 
 // -----------------------------------------------------------------------------
-// Event listeners and startup
+// 12. Event listeners
 // -----------------------------------------------------------------------------
 
+// Sound toggle.
 soundButton.addEventListener('click', () => {
   soundMuted = !soundMuted;
 
@@ -595,15 +769,26 @@ soundButton.addEventListener('click', () => {
   soundButton.setAttribute('aria-label', soundButton.title);
 });
 
+// Reveal/Flag mode toggle.
 flagCounter.addEventListener('click', () => {
   flagMode = !flagMode;
   updateFlagMode();
 });
 
+// Clicking the clock pauses or resumes the game.
+timerDisplay.addEventListener('click', togglePause);
+
+// Resume button inside the pause popup.
+resumeButton.addEventListener('click', resumeGame);
+
+// Board interaction.
 canvas.addEventListener('click', handleClick);
 canvas.addEventListener('contextmenu', toggleFlag);
 
+// Mouse hover highlighting.
 canvas.addEventListener('mousemove', (event) => {
+  if (isPaused) return;
+
   const { row, col } = getCellFromMouse(event);
 
   if (row !== hoveredRow || col !== hoveredCol) {
@@ -619,11 +804,16 @@ canvas.addEventListener('mouseleave', () => {
   draw();
 });
 
+// Start a new game.
 newGameButton.addEventListener('click', newGame);
+
+// Dismiss the win/loss popup.
 gameOverOkButton.addEventListener('click', hideGameOverPopup);
 
+// Change difficulty and generate a new board.
 difficultySelect.addEventListener('change', () => {
   currentDifficulty = difficultySelect.value;
+
   const settings = difficulties[currentDifficulty];
 
   rows = settings.rows;
@@ -633,17 +823,24 @@ difficultySelect.addEventListener('change', () => {
   canvasWidth = cols * cellSize;
   canvasHeight = rows * cellSize;
 
-  hoveredRow = -1;
-  hoveredCol = -1;
-
   newGame();
   resizeCanvas();
 });
 
+// Keep the board responsive when the browser window changes size.
 window.addEventListener('resize', resizeCanvas);
 
-// Build and display the initial Intermediate board.
+// -----------------------------------------------------------------------------
+// 13. Initial game setup
+// -----------------------------------------------------------------------------
+
 createBoard();
 placeMines(mineCount);
 countAdjacentMines();
+
+updateTimer();
+updateFlagCounter();
+updateFlagMode();
+updatePauseButton();
+
 resizeCanvas();

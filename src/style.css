@@ -1,6 +1,6 @@
 
 /* ==========================================================================
-   Global Styles
+   1. Global Styles
    ========================================================================== */
 
 * {
@@ -25,7 +25,7 @@ body {
 
 
 /* ==========================================================================
-   Game Layout
+   2. Game Layout
    ========================================================================== */
 
 .game {
@@ -34,7 +34,7 @@ body {
   align-items: center;
   gap: 8px;
 
-  /* Leave a small margin on narrow browser windows. */
+  /* Keep the game within narrow browser windows. */
   max-width: calc(100vw - 32px);
   min-width: 0;
 }
@@ -50,23 +50,22 @@ body {
 
 
 /* ==========================================================================
-   Game Board
+   3. Game Board
    ========================================================================== */
 
 canvas {
   display: block;
 
   /*
-   * JavaScript controls the canvas's displayed dimensions.
-   * The maximum width prevents it from exceeding the board's
-   * logical width.
+   * JavaScript calculates the displayed board dimensions.
+   * This prevents the canvas from exceeding its logical width.
    */
   max-width: var(--board-width);
 }
 
 
 /* ==========================================================================
-   Top Controls - Flag Counter, Timer, and Sound
+   4. Top Controls - Flag Counter, Timer, and Sound
    ========================================================================== */
 
 .game-controls {
@@ -78,35 +77,39 @@ canvas {
   margin: 0;
 }
 
+/*
+ * The flag counter and timer are interactive buttons.
+ * They share the same base styling and active-state appearance.
+ */
 #flagCounter,
 #timer {
-  font-size: 20px;
-  font-weight: bold;
-  color: white;
-}
-
-/* Flag counter also acts as the Reveal/Flag mode toggle. */
-#flagCounter {
   background: transparent;
   border: 2px solid transparent;
   border-radius: 6px;
   padding: 4px 8px;
+
+  font-size: 20px;
+  font-weight: bold;
+  color: white;
   cursor: pointer;
 }
 
-/* Highlight the counter when Flag mode is active. */
-#flagCounter.active {
+/* Highlight Flag mode or the paused timer. */
+#flagCounter.active,
+#timer.active {
   background: rgba(170, 215, 81, 0.2);
   border-color: #AAD751;
 }
 
+/* Sound toggle. */
 #soundButton {
   background: none;
   border: none;
+  padding: 4px 8px;
+
   color: white;
   font-size: 24px;
   cursor: pointer;
-  padding: 4px 8px;
 }
 
 #soundButton:hover {
@@ -115,7 +118,7 @@ canvas {
 
 
 /* ==========================================================================
-   Bottom Controls - New Game and Difficulty
+   5. Bottom Controls - New Game and Difficulty
    ========================================================================== */
 
 .difficulty-controls {
@@ -127,9 +130,13 @@ canvas {
   color: white;
 }
 
-/* Shared styling for the main game buttons and dropdown. */
+/*
+ * Shared button styling for New Game, popup actions,
+ * and the difficulty dropdown.
+ */
 #newGameButton,
 #gameOverOkButton,
+#resumeButton,
 #difficultySelect {
   background: #454568;
   color: white;
@@ -148,31 +155,37 @@ canvas {
 }
 
 #newGameButton:hover,
-#gameOverOkButton:hover {
+#gameOverOkButton:hover,
+#resumeButton:hover {
   background: #5a5a80;
 }
 
 
 /* ==========================================================================
-   Game Over Popup
+   6. Shared Popup Styles - Pause and Game Over
    ========================================================================== */
 
-/* Darkens the page and centers the win/loss dialog. */
+/*
+ * Full-screen backdrop for modal dialogs.
+ * The slightly darker backdrop obscures the board while paused.
+ */
 .game-over-overlay {
   position: fixed;
   inset: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: rgba(0, 0, 0, 0.55);
+
+  background: rgba(0, 0, 0, 0.7);
   z-index: 100;
 }
 
-/* JavaScript toggles this class when showing or hiding the popup. */
+/* JavaScript toggles this class to show or hide dialogs. */
 .game-over-overlay.hidden {
   display: none;
 }
 
+/* Shared dialog appearance. */
 .game-over-popup {
   background: #252540;
   color: white;
@@ -187,6 +200,8 @@ canvas {
   font-size: 28px;
 }
 
-#gameOverOkButton {
+/* Both dialogs use the same button dimensions. */
+#gameOverOkButton,
+#resumeButton {
   padding: 10px 32px;
 }
