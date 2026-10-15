@@ -3,12 +3,12 @@
    Minesweeper - Audio Manager
 
    Responsible for:
-   - Loading dedicated sound effect files
+   - Loading and decoding sound effects with Web Audio
+   - Respecting supported device Silent Mode behavior
    - Playing reveal, flag, win, and loss sounds
-   - Balancing sound effect volumes
-   - Prioritizing important game events
-   - Managing mute state
+   - Managing in-game mute state
    - Supporting overlapping sound effects
+   - Prioritizing win and loss audio
    - Handling mobile browser audio restrictions
 
    Audio files are stored in public/audio/.
@@ -21,7 +21,6 @@ import { ASSETS } from './config.js';
    1. Audio Configuration
    ========================================================================== */
 
-// Map gameplay events to their corresponding sound assets.
 const SOUND_FILES = Object.freeze({
   reveal: ASSETS.revealSound,
   flag: ASSETS.flagSound,
@@ -29,7 +28,6 @@ const SOUND_FILES = Object.freeze({
   lose: ASSETS.loseSound
 });
 
-// Individual playback volume adjustments.
 const SOUND_VOLUMES = Object.freeze({
   reveal: 0.70,
   flag: 0.55,
@@ -37,10 +35,8 @@ const SOUND_VOLUMES = Object.freeze({
   lose: 0.75
 });
 
-// Limit overlapping effects to prevent excessive sound stacking.
 const MAX_SIMULTANEOUS_SOUNDS = 4;
 
-// Win and loss effects take priority over ordinary gameplay sounds.
 const PRIORITY_SOUNDS = new Set([
   'win',
   'lose'
@@ -55,69 +51,174 @@ export class MinesweeperAudio {
   constructor() {
     this.muted = false;
 
-    // Preloaded audio templates.
-    this.sounds = new Map();
+    this.AudioContextClass =
+      window.AudioContext || window.webkitAudioContext;
 
-    // Active playback instances, mapped to their sound names.
-    this.activeSounds = new Map();
+    this.context = null;
 
-    this.loadSounds();
+    // Decoded audio buffers.
+    this.buffers = new Map();
+
+    // In-progress sound loading promises.
+    this.loading = new Map();
+
+    // Currently playing audio sources.
+    this.activeSounds = new Set();
+
+    // Invalidates playback requests after mute or stop.
+    this.playbackGeneration = 0;
+
+    this.preloadStarted = false;
+
+    // Bind handlers so they can be removed during cleanup.
+    this.unlockAudio = this.unlockAudio.bind(this);
+
+    document.addEventListener(
+      'pointerdown',
+      this.unlockAudio
+    );
+
+    document.addEventListener(
+      'touchstart',
+      this.unlockAudio,
+      { passive: true }
+    );
+
+    document.addEventListener(
+      'keydown',
+      this.unlockAudio
+    );
   }
 
 
   /* ========================================================================
-     3. Audio Preloading
+     3. Audio Context
      ======================================================================== */
 
+  getContext() {
+    if (!this.AudioContextClass) {
+      return null;
+    }
+
+    if (!this.context) {
+      this.context = new this.AudioContextClass();
+    }
+
+    return this.context;
+  }
+
+
+  /* ========================================================================
+     4. Sound Loading
+     ======================================================================== */
+
+  async loadSound(name) {
+    if (this.buffers.has(name)) {
+      return this.buffers.get(name);
+    }
+
+    if (this.loading.has(name)) {
+      return this.loading.get(name);
+    }
+
+    const filename = SOUND_FILES[name];
+    const ctx = this.getContext();
+
+    if (!filename || !ctx) {
+      return null;
+    }
+
+    const promise = (async () => {
+      const response = await fetch(filename);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load ${name}: ${response.status}`
+        );
+      }
+
+      const data = await response.arrayBuffer();
+      const buffer = await ctx.decodeAudioData(data);
+
+      this.buffers.set(name, buffer);
+
+      return buffer;
+    })();
+
+    this.loading.set(name, promise);
+
+    try {
+      return await promise;
+    } finally {
+      this.loading.delete(name);
+    }
+  }
+
+
   /**
-   * Prepare sound files for playback.
-   *
-   * Mobile browsers may defer loading until the
-   * user interacts with the page.
+   * Preload the four sounds after the first user interaction.
    */
-  loadSounds() {
-    for (const [name, source] of Object.entries(SOUND_FILES)) {
-      const audio = new Audio();
+  preloadSounds() {
+    if (this.preloadStarted || this.muted) {
+      return;
+    }
 
-      audio.preload = 'auto';
-      audio.src = source;
-      audio.volume = SOUND_VOLUMES[name] ?? 0.5;
+    this.preloadStarted = true;
 
-      this.sounds.set(name, audio);
-
-      audio.load();
+    for (const name of Object.keys(SOUND_FILES)) {
+      this.loadSound(name).catch(error => {
+        console.warn(
+          `Could not preload ${name}:`,
+          error
+        );
+      });
     }
   }
 
 
   /* ========================================================================
-     4. Sound Playback
+     5. Mobile Audio Activation
      ======================================================================== */
 
-  /**
-   * Play a named sound effect.
-   *
-   * Supported names:
-   * - reveal
-   * - flag
-   * - win
-   * - lose
-   */
-  play(name) {
+  unlockAudio() {
     if (this.muted) {
       return;
     }
 
-    const source = this.sounds.get(name);
+    const ctx = this.getContext();
 
-    if (!source) {
-      console.warn(`Unknown Minesweeper sound: ${name}`);
+    if (!ctx) {
+      return;
+    }
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {
+        // A later interaction can retry.
+      });
+    }
+
+    this.preloadSounds();
+  }
+
+
+  /* ========================================================================
+     6. Sound Playback
+     ======================================================================== */
+
+  async play(name) {
+    if (this.muted) {
+      return;
+    }
+
+    if (!SOUND_FILES[name]) {
+      console.warn(
+        `Unknown Minesweeper sound: ${name}`
+      );
       return;
     }
 
     const isPriority = PRIORITY_SOUNDS.has(name);
 
-    // Game-ending effects should not compete with gameplay clicks.
     if (isPriority) {
       this.stopAll();
     } else if (
@@ -126,92 +227,107 @@ export class MinesweeperAudio {
       return;
     }
 
-    // Clone the preloaded element to allow overlapping effects.
-    const audio = source.cloneNode(true);
+    const generation = this.playbackGeneration;
 
-    audio.volume = SOUND_VOLUMES[name] ?? 0.5;
-
-    const cleanup = () => {
-      this.activeSounds.delete(audio);
-
-      audio.removeEventListener('ended', cleanup);
-      audio.removeEventListener('error', cleanup);
-    };
-
-    this.activeSounds.set(audio, name);
-
-    audio.addEventListener('ended', cleanup);
-    audio.addEventListener('error', cleanup);
-
-    // Browsers may reject playback until user interaction.
     try {
-      const playback = audio.play();
+      const ctx = this.getContext();
 
-      if (
-        playback &&
-        typeof playback.catch === 'function'
-      ) {
-        playback.catch(() => {
-          cleanup();
-        });
+      if (!ctx) {
+        return;
       }
+
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+
+      const buffer = await this.loadSound(name);
+
+      // Do not play a sound after mute, restart, or cleanup.
+      if (
+        this.muted ||
+        generation !== this.playbackGeneration ||
+        !buffer ||
+        ctx.state !== 'running'
+      ) {
+        return;
+      }
+
+      // Check the concurrency limit again after loading.
+      if (
+        !isPriority &&
+        this.activeSounds.size >= MAX_SIMULTANEOUS_SOUNDS
+      ) {
+        return;
+      }
+
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+
+      source.buffer = buffer;
+      gain.gain.value = SOUND_VOLUMES[name] ?? 0.5;
+
+      source.connect(gain);
+      gain.connect(ctx.destination);
+
+      source.onended = () => {
+        this.activeSounds.delete(source);
+
+        source.disconnect();
+        gain.disconnect();
+      };
+
+      this.activeSounds.add(source);
+
+      source.start(0);
+
     } catch (error) {
-      cleanup();
+      console.warn(
+        `Audio playback failed: ${name}`,
+        error
+      );
     }
   }
 
 
   /* ========================================================================
-     5. Mute Controls
+     7. Mute Controls
      ======================================================================== */
 
-  /**
-   * Enable or disable sound effects.
-   *
-   * Muting immediately stops currently playing sounds.
-   */
   setMuted(muted) {
     this.muted = Boolean(muted);
 
     if (this.muted) {
       this.stopAll();
+    } else {
+      this.unlockAudio();
     }
 
     return this.muted;
   }
 
 
-  /**
-   * Toggle sound effects on or off.
-   */
   toggleMute() {
     return this.setMuted(!this.muted);
   }
 
 
-  /**
-   * Return the current mute state.
-   */
   isMuted() {
     return this.muted;
   }
 
 
   /* ========================================================================
-     6. Audio Cleanup
+     8. Audio Cleanup
      ======================================================================== */
 
-  /**
-   * Stop all active playback instances.
-   */
   stopAll() {
-    for (const audio of this.activeSounds.keys()) {
-      audio.pause();
+    this.playbackGeneration++;
 
+    for (const source of this.activeSounds) {
       try {
-        audio.currentTime = 0;
-      } catch (error) {
-        // Some browsers restrict seeking during loading.
+        source.stop();
+      } catch {
+        // Source may have already finished.
       }
     }
 
@@ -219,18 +335,30 @@ export class MinesweeperAudio {
   }
 
 
-  /**
-   * Release audio resources when the application is disposed.
-   */
   destroy() {
     this.stopAll();
 
-    for (const audio of this.sounds.values()) {
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
-    }
+    document.removeEventListener(
+      'pointerdown',
+      this.unlockAudio
+    );
 
-    this.sounds.clear();
+    document.removeEventListener(
+      'touchstart',
+      this.unlockAudio
+    );
+
+    document.removeEventListener(
+      'keydown',
+      this.unlockAudio
+    );
+
+    this.buffers.clear();
+    this.loading.clear();
+
+    if (this.context) {
+      this.context.close().catch(() => {});
+      this.context = null;
+    }
   }
 }
