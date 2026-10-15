@@ -1,0 +1,25 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+
+  <!-- Rounded green tile -->
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="#AAD751"></rect>
+
+  <!-- Subtle tile border -->
+  <rect x="4" y="4" width="56" height="56" rx="10" fill="none" stroke="#94BF44" stroke-width="4"></rect>
+
+  <!-- Mine spikes -->
+  <g stroke="#252525" stroke-width="5" stroke-linecap="round">
+    <path d="M32 10 V54"></path>
+    <path d="M10 32 H54"></path>
+    <path d="M16 16 L48 48"></path>
+    <path d="M48 16 L16 48"></path>
+  </g>
+
+  <!-- Mine body -->
+  <circle cx="32" cy="32" r="16" fill="#252525"></circle>
+  <circle cx="32" cy="32" r="12" fill="#353535"></circle>
+
+  <!-- Highlight -->
+  <circle cx="26" cy="25" r="4" fill="#FFFFFF"></circle>
+
+</svg>

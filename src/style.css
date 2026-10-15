@@ -1,148 +1,331 @@
 
 /* ==========================================================================
-   1. Global Styles
+   Minesweeper - Responsive Styles
+
+   Portrait:
+     Title
+     Flag / Timer / Sound
+     Board
+     New Game / Difficulty
+     Footer
+
+   Landscape:
+     Board | Title
+           | Flag / Timer / Sound
+           | New Game / Difficulty
+           | Footer
+
+   The Canvas renderer preserves square cells and board proportions.
    ========================================================================== */
+
+
+/* ==========================================================================
+   1. Global Reset and Theme
+   ========================================================================== */
+
+:root {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #f5f5f5;
+  background: #101027;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+
+  --page-bg: #101027;
+  --panel-bg: #252540;
+  --control-bg: #454568;
+  --control-hover: #5a5a80;
+  --accent: #aad751;
+  --text: #f5f5f5;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
 
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
+  width: 100%;
+  height: 100%;
   margin: 0;
-  min-height: 100vh;
-  font-family: Arial, sans-serif;
-  background-color: #101027;
-  color: white;
 }
 
-/* Center the game within the browser window. */
-#app {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+body {
+  overflow: hidden;
+  background: var(--page-bg);
+  color: var(--text);
+}
+
+button,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.hidden {
+  display: none !important;
 }
 
 
 /* ==========================================================================
-   2. Game Layout
+   2. Application Container
    ========================================================================== */
 
+#app {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 .game {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+
+  /*
+   * The board fills the center row.
+   * The sidebar's children are positioned into the outer rows.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows:
+    auto
+    auto
+    minmax(0, 1fr)
+    auto
+    auto;
+
   gap: 8px;
 
-  /* Keep the game within narrow browser windows. */
-  max-width: calc(100vw - 32px);
+  width: 100%;
+  max-width: 1500px;
+  height: 100%;
+  min-height: 0;
+
+  margin: 0 auto;
+
+  padding:
+    calc(10px + var(--safe-top))
+    calc(12px + var(--safe-right))
+    calc(10px + var(--safe-bottom))
+    calc(12px + var(--safe-left));
+}
+
+
+/* ==========================================================================
+   3. Sidebar Layout
+   ========================================================================== */
+
+/*
+ * In portrait, display: contents allows the sidebar's children
+ * to participate directly in the parent grid.
+ *
+ * This places the title and status controls above the board,
+ * while setup controls and footer remain below it.
+ */
+
+.game-sidebar {
+  display: contents;
+}
+
+
+/* ==========================================================================
+   4. Header
+   ========================================================================== */
+
+.game-header {
+  grid-column: 1;
+  grid-row: 1;
+
+  text-align: center;
   min-width: 0;
 }
 
-.game h1 {
+.game-header h1 {
   margin: 0;
-  font-size: 36px;
+
+  font-size: clamp(24px, 4vw, 36px);
   font-weight: 700;
   letter-spacing: 1.5px;
-  color: #f5f5f5;
+  line-height: 1.15;
+
+  color: var(--text);
   text-shadow: 2px 3px 0 #394b32;
 }
 
 
 /* ==========================================================================
-   3. Game Board
+   5. Status Controls
    ========================================================================== */
 
-canvas {
-  display: block;
+.status-panel {
+  grid-column: 1;
+  grid-row: 2;
 
-  /*
-   * JavaScript calculates the displayed board dimensions.
-   * This prevents the canvas from exceeding its logical width.
-   */
-  max-width: var(--board-width);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 0;
 }
-
-
-/* ==========================================================================
-   4. Top Controls - Flag Counter, Timer, and Sound
-   ========================================================================== */
 
 .game-controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 60px;
-  width: 100%;
-  margin: 0;
+
+  gap: clamp(12px, 5vw, 60px);
 }
 
-/*
- * The flag counter and timer are interactive buttons.
- * They share the same base styling and active-state appearance.
- */
-#flagCounter,
-#timer {
-  background: transparent;
+.status-button,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
+  min-height: 40px;
+  padding: 5px 8px;
+
   border: 2px solid transparent;
   border-radius: 6px;
-  padding: 4px 8px;
+
+  background: transparent;
+  color: var(--text);
 
   font-size: 20px;
-  font-weight: bold;
-  color: white;
+  font-weight: 700;
+
   cursor: pointer;
+  white-space: nowrap;
 }
 
-/* Highlight Flag mode or the paused timer. */
-#flagCounter.active,
-#timer.active {
+.status-button.active {
+  border-color: var(--accent);
   background: rgba(170, 215, 81, 0.2);
-  border-color: #AAD751;
 }
 
-/* Sound toggle. */
-#soundButton {
-  background: none;
-  border: none;
-  padding: 4px 8px;
-
-  color: white;
-  font-size: 24px;
-  cursor: pointer;
+.status-button:hover,
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
-#soundButton:hover {
-  opacity: 0.7;
+.status-button.active:hover {
+  background: rgba(170, 215, 81, 0.28);
+}
+
+.control-icon {
+  display: block;
+  width: 25px;
+  height: 25px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.timer-icon {
+  font-size: 23px;
+  line-height: 1;
+}
+
+#flagCount,
+#timerValue {
+  font-variant-numeric: tabular-nums;
 }
 
 
 /* ==========================================================================
-   5. Bottom Controls - New Game and Difficulty
+   6. Board
    ========================================================================== */
+
+.board-container {
+  grid-column: 1;
+  grid-row: 3;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+
+  min-width: 0;
+  min-height: 0;
+
+  overflow: hidden;
+}
+
+#gameCanvas {
+  display: block;
+  flex: 0 0 auto;
+
+  max-width: 100%;
+  max-height: 100%;
+
+  border-radius: 3px;
+
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+
+/* ==========================================================================
+   7. New Game and Difficulty
+   ========================================================================== */
+
+.control-panel {
+  grid-column: 1;
+  grid-row: 4;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 0;
+}
 
 .difficulty-controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  color: white;
+  flex-wrap: wrap;
+
+  gap: 10px;
 }
 
-/*
- * Shared button styling for New Game, popup actions,
- * and the difficulty dropdown.
- */
+.difficulty-controls label {
+  font-size: 15px;
+}
+
 #newGameButton,
-#gameOverOkButton,
-#resumeButton,
 #difficultySelect {
-  background: #454568;
-  color: white;
+  width: auto;
+  min-width: 0;
+  min-height: 40px;
+
   border: none;
   border-radius: 6px;
-  font-size: 16px;
+
+  background: var(--control-bg);
+  color: var(--text);
+
+  font-size: 15px;
   cursor: pointer;
 }
 
@@ -152,56 +335,378 @@ canvas {
 
 #difficultySelect {
   padding: 8px 12px;
+  max-width: 160px;
 }
 
 #newGameButton:hover,
-#gameOverOkButton:hover,
-#resumeButton:hover {
-  background: #5a5a80;
+#difficultySelect:hover {
+  background: var(--control-hover);
 }
 
 
 /* ==========================================================================
-   6. Shared Popup Styles - Pause and Game Over
+   8. Footer
    ========================================================================== */
 
-/*
- * Full-screen backdrop for modal dialogs.
- * The slightly darker backdrop obscures the board while paused.
- */
+.game-footer {
+  grid-column: 1;
+  grid-row: 5;
+
+  padding: 4px 0;
+
+  font-size: 13px;
+  text-align: center;
+  color: #b6b6c9;
+}
+
+.game-footer a {
+  color: #d6eab7;
+  text-decoration: none;
+}
+
+.game-footer a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+
+/* ==========================================================================
+   9. Dialogs
+   ========================================================================== */
+
 .game-over-overlay {
   position: fixed;
   inset: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-
-  background: rgba(0, 0, 0, 0.7);
   z-index: 100;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    calc(16px + var(--safe-top))
+    calc(16px + var(--safe-right))
+    calc(16px + var(--safe-bottom))
+    calc(16px + var(--safe-left));
+
+  background: rgba(0, 0, 0, 0.78);
 }
 
-/* JavaScript toggles this class to show or hide dialogs. */
-.game-over-overlay.hidden {
-  display: none;
-}
-
-/* Shared dialog appearance. */
 .game-over-popup {
-  background: #252540;
-  color: white;
-  padding: 32px 48px;
+  width: min(100%, 420px);
+  max-height: 100%;
+  overflow-y: auto;
+
+  padding: 28px 24px;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
+
+  background: var(--panel-bg);
+  color: var(--text);
+
   text-align: center;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
 }
 
 .game-over-popup h2 {
-  margin: 0 0 24px;
+  margin: 0 0 18px;
   font-size: 28px;
 }
 
-/* Both dialogs use the same button dimensions. */
-#gameOverOkButton,
+.pause-message {
+  margin: 0 0 22px;
+  color: #d0d0dd;
+  line-height: 1.5;
+}
+
+#resumeButton,
+#gameOverOkButton {
+  min-height: 42px;
+  padding: 10px 20px;
+
+  border: none;
+  border-radius: 6px;
+
+  background: var(--control-bg);
+  color: var(--text);
+
+  font-size: 15px;
+  cursor: pointer;
+}
+
 #resumeButton {
-  padding: 10px 32px;
+  background: #527538;
+}
+
+#resumeButton:hover {
+  background: #668d49;
+}
+
+#gameOverOkButton:hover {
+  background: var(--control-hover);
+}
+
+
+/* ==========================================================================
+   10. Desktop
+   ========================================================================== */
+
+@media (min-width: 900px) and (min-height: 600px) {
+  .game {
+    gap: 12px;
+    padding-top: 20px;
+    padding-bottom: 14px;
+  }
+
+  .game-controls {
+    gap: 60px;
+  }
+}
+
+
+/* ==========================================================================
+   11. Mobile Portrait
+   ========================================================================== */
+
+@media (max-width: 899px) and (orientation: portrait) {
+  .game {
+    gap: 6px;
+
+    padding-top: calc(8px + var(--safe-top));
+    padding-bottom: calc(6px + var(--safe-bottom));
+  }
+
+  .game-header h1 {
+    font-size: clamp(24px, 6vw, 32px);
+  }
+
+  .game-controls {
+    gap: clamp(8px, 5vw, 28px);
+  }
+
+  .status-button,
+  .icon-button {
+    min-height: 38px;
+    font-size: 18px;
+  }
+
+  .control-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .difficulty-controls {
+    gap: 8px;
+  }
+
+  #newGameButton,
+  #difficultySelect {
+    min-height: 38px;
+    font-size: 14px;
+  }
+
+  .game-footer {
+    font-size: 12px;
+  }
+}
+
+
+/* ==========================================================================
+   12. Mobile Landscape
+   ========================================================================== */
+
+@media (max-height: 600px) and (orientation: landscape) {
+  .game {
+    grid-template-columns:
+      minmax(0, 1fr)
+      clamp(145px, 24vw, 210px);
+
+    grid-template-rows: minmax(0, 1fr);
+
+    gap: 8px;
+
+    padding-top: calc(5px + var(--safe-top));
+    padding-bottom: calc(5px + var(--safe-bottom));
+  }
+
+  /*
+   * Restore the sidebar as a real grid item.
+   *
+   * This keeps the header, status controls, setup controls,
+   * and footer entirely inside the right-hand column.
+   */
+  .game-sidebar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+
+    grid-column: 2;
+    grid-row: 1;
+
+    gap: 8px;
+
+    width: 100%;
+    height: 100%;
+
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /*
+   * Center the canvas in the board region.
+   *
+   * A modest rightward shift helps the smaller square boards
+   * feel more balanced alongside the right-hand sidebar.
+   *
+   * Expert remains centered normally because its wider
+   * board already fills more of the available region.
+   */
+  .board-container {
+    grid-column: 1;
+    grid-row: 1;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+    height: 100%;
+
+    padding-left: clamp(0px, 3vw, 24px);
+  }
+
+  .game-header,
+  .status-panel,
+  .control-panel,
+  .game-footer {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .game-header h1 {
+    font-size: clamp(18px, 2.6vw, 24px);
+    letter-spacing: 0.5px;
+  }
+
+  .game-controls {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .status-button,
+  .icon-button {
+    min-height: 34px;
+    padding: 4px 6px;
+    font-size: 16px;
+  }
+
+  .control-icon {
+    width: 21px;
+    height: 21px;
+  }
+
+  .timer-icon {
+    font-size: 18px;
+  }
+
+  .difficulty-controls {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .difficulty-controls label {
+    font-size: 12px;
+  }
+
+  /*
+   * Compact buttons instead of stretching them
+   * across the entire sidebar.
+   */
+  #newGameButton,
+  #difficultySelect {
+    width: auto;
+    min-height: 32px;
+    padding: 5px 12px;
+    font-size: 13px;
+  }
+
+  #difficultySelect {
+    max-width: 150px;
+  }
+
+  .game-footer {
+    padding: 0;
+    font-size: 11px;
+  }
+}
+
+
+/* ==========================================================================
+   13. Very Short Landscape Screens
+   ========================================================================== */
+
+@media (max-height: 400px) and (orientation: landscape) {
+  .game {
+    grid-template-columns: minmax(0, 1fr) 135px;
+    gap: 5px;
+  }
+
+  .game-sidebar {
+    gap: 3px;
+  }
+
+  .game-header h1 {
+    font-size: 17px;
+  }
+
+  .game-controls {
+    gap: 3px;
+  }
+
+  .status-button,
+  .icon-button {
+    min-height: 28px;
+    padding: 2px 4px;
+    font-size: 14px;
+  }
+
+  .control-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .difficulty-controls {
+    gap: 3px;
+  }
+
+  #newGameButton,
+  #difficultySelect {
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: 12px;
+  }
+
+  .game-footer {
+    font-size: 10px;
+  }
+}
+
+
+/* ==========================================================================
+   14. Reduced Motion
+   ========================================================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  select,
+  .game-footer a {
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease,
+      opacity 0.15s ease;
+  }
 }

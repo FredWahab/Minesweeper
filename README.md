@@ -5,7 +5,7 @@ A modern, browser-based version of the classic Minesweeper puzzle game, built wi
 
 Reveal safe cells, use the numbered clues to locate hidden mines, and clear the board without triggering an explosion.
 
-**[▶ Play Minesweeper](https://fredwahab.github.io/minesweeper/)**
+**[▶ Play Minesweeper](https://fredwahab.github.io/Minesweeper/)**
 
 ![Minesweeper gameplay showing revealed cells, numbered clues, and flagged mines](assets/gameplay.png)
 
@@ -28,6 +28,7 @@ The first reveal is always an empty cell, giving you a safe starting area.
 | Reveal a cell | Left-click in Reveal mode | Tap in Reveal mode |
 | Place or remove a flag | Right-click, or left-click in Flag mode | Tap in Flag mode |
 | Switch Reveal / Flag mode | Click the flag counter (🚩) | Tap the flag counter (🚩) |
+| Pause or resume | Click the timer | Tap the timer |
 | Start a new game | New Game button | New Game button |
 | Change difficulty | Difficulty dropdown | Difficulty dropdown |
 | Mute or unmute audio | Speaker button | Speaker button |
@@ -37,6 +38,8 @@ The first reveal is always an empty cell, giving you a safe starting area.
 Right-clicking on desktop always toggles a flag, regardless of the selected mode.
 
 Starting a new game automatically returns to Reveal mode.
+
+**Pause:** Select the timer to pause the game. The board is covered by a pause dialog until Resume Game is selected, and the timer stops while paused.
 
 ### Difficulty Levels
 
@@ -48,6 +51,8 @@ Starting a new game automatically returns to Reveal mode.
 
 The game starts on Intermediate difficulty. Changing difficulty creates a new board.
 
+On devices with different screen orientations, rectangular boards are automatically transposed to better fit the available space. Board dimensions change orientation without changing the number of cells or mines.
+
 ## Features
 
 - Three classic difficulty levels
@@ -58,11 +63,16 @@ The game starts on Intermediate difficulty. Changing difficulty creates a new bo
 - Flag placement and remaining-flag counter
 - Reveal/Flag mode toggle for desktop and mobile
 - Game timer that starts on the first reveal
+- Pause and resume functionality
 - Win and loss detection
-- Win/loss dialog and New Game functionality
+- Win/loss dialogs and New Game functionality
 - Sound effects with mute/unmute controls
-- Responsive board scaling
+- Responsive board scaling with square tiles
+- Automatic board transposition between portrait and landscape
+- Landscape mobile layout with controls beside the board
+- High-density display support
 - Hover highlighting for available cells
+- Custom mine and flag graphics
 - Automatic deployment to GitHub Pages
 
 ## Technology
@@ -73,8 +83,8 @@ Minesweeper was developed without a game engine or frontend UI framework.
 |---|---|
 | JavaScript (ES Modules) | Game logic, state management, and input handling |
 | HTML5 Canvas | Board rendering, numbers, mines, and flags |
-| CSS3 | Page layout, controls, styling, and dialogs |
-| Web Audio API | Generated sound effects |
+| CSS3 | Responsive layout, controls, styling, and dialogs |
+| Browser Audio APIs | Playback and management of sound effects |
 | Vite | Local development and production builds |
 | GitHub Actions | Automated builds and deployment |
 | GitHub Pages | Static website hosting |
@@ -82,6 +92,8 @@ Minesweeper was developed without a game engine or frontend UI framework.
 ## Technical Overview
 
 The game uses a two-dimensional array to represent the board. Each cell stores its mine status, reveal status, flag status, and number of adjacent mines.
+
+The application separates board logic, game state, rendering, input handling, audio, configuration, and user interface management into dedicated JavaScript modules.
 
 ### Board Generation
 
@@ -102,7 +114,7 @@ This guarantees that the first reveal triggers an empty-area expansion while pre
 
 ### Cell Revealing
 
-The game uses a recursive flood-reveal algorithm.
+The game uses a flood-reveal algorithm.
 
 When a cell with zero adjacent mines is revealed, the game automatically reveals its neighboring cells. The process continues through connected empty cells until numbered cells form the boundary.
 
@@ -114,19 +126,51 @@ The game is won when every non-mine cell has been revealed. Correctly flagging e
 
 Revealing a mine ends the game, stops the timer, and displays the remaining mines.
 
+### Game State and Timer
+
+Game state management is handled separately from the renderer and user interface.
+
+The game tracks the current difficulty, board state, revealed cells, flags, elapsed time, pause status, and win/loss conditions.
+
+The timer begins on the first reveal rather than when the board is generated.
+
+Pausing suspends gameplay and timer progression until the player resumes.
+
+### Responsive Layout and Board Orientation
+
+The application supports portrait and landscape layouts across desktop and mobile browsers.
+
+In portrait mode, the title and status indicators appear above the board, with the game controls below it.
+
+On shorter landscape screens, the board occupies the left side while the title, status indicators, difficulty controls, and footer are arranged in a right-hand sidebar.
+
+Rectangular game boards are transposed when needed to accommodate the current orientation.
+
+This preserves the complete grid and its mine count while providing a more suitable layout for the available screen dimensions.
+
+If the device orientation changes during a game, the existing board is transposed rather than regenerated, preserving the player's progress.
+
 ### Canvas Rendering and Input
 
 The board is drawn using the Canvas 2D API.
 
-The canvas is scaled to fit the available browser window while preserving its aspect ratio. Mouse coordinates are converted from displayed canvas dimensions into logical board coordinates so cell selection remains accurate when the board is resized.
+The renderer uses fixed logical cell coordinates while calculating the displayed Canvas dimensions from the available container space.
+
+This allows the board to grow or shrink while maintaining square cells and preserving its aspect ratio.
+
+Device pixel ratio is considered when sizing the Canvas backing buffer to improve rendering on high-density displays.
+
+Mouse and touch coordinates are converted from displayed Canvas dimensions into logical board coordinates, keeping cell selection accurate regardless of scaling.
 
 The flag-mode toggle allows touchscreen users to place and remove flags without requiring a right-click.
 
 ### Audio
 
-Sound effects are synthesized using the Web Audio API rather than loaded from external audio files.
+Sound effects are managed through a dedicated audio module.
 
-Different sounds are used for cell reveals, flag placement, winning, and losing.
+Audio assets are loaded using paths compatible with both Vite's development environment and the GitHub Pages deployment base path.
+
+The player can mute or unmute sound effects through the speaker control.
 
 ## Running Locally
 
@@ -141,8 +185,8 @@ Different sounds are used for cell reveals, flag placement, winning, and losing.
 Clone the repository:
 
 ```bash
-git clone https://github.com/FredWahab/minesweeper.git
-cd minesweeper
+git clone https://github.com/FredWahab/Minesweeper.git
+cd Minesweeper
 ```
 
 Install dependencies:
@@ -179,7 +223,7 @@ npm run preview
 
 The game is hosted on GitHub Pages:
 
-**https://fredwahab.github.io/minesweeper/**
+**https://fredwahab.github.io/Minesweeper/**
 
 Deployment is automated using GitHub Actions.
 
@@ -191,15 +235,18 @@ When changes are pushed to the `master` branch, the deployment workflow:
 4. Uploads the generated production files.
 5. Deploys the build to GitHub Pages.
 
-The Vite configuration uses `/minesweeper/` as its base path for GitHub Pages hosting.
+The Vite configuration uses `/Minesweeper/` as its base path for GitHub Pages hosting.
 
 ## Future Improvements
 
-Potential enhancements include:
+Potential enhancements for future versions include:
 
-- A landscape-oriented mobile layout with controls positioned beside the board
 - Optional long-press flag placement on touchscreens
 - Additional accessibility and keyboard controls
+- Additional game modes and customization options
+- Localization and multilingual support
+- Expanded animations and visual effects
+- Additional audio options
 
 ## Author
 

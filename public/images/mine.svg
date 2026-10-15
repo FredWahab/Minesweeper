@@ -1,0 +1,23 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+
+  <!-- Mine spikes -->
+  <g stroke="#252525" stroke-width="6" stroke-linecap="round">
+
+    <path d="M32 6 V58"></path>
+    <path d="M6 32 H58"></path>
+    <path d="M14 14 L50 50"></path>
+    <path d="M50 14 L14 50"></path>
+
+  </g>
+
+  <!-- Mine body -->
+  <circle cx="32" cy="32" r="19" fill="#252525"></circle>
+
+  <!-- Subtle shading -->
+  <circle cx="32" cy="32" r="14" fill="#353535"></circle>
+
+  <!-- Highlight -->
+  <circle cx="25" cy="24" r="5" fill="#FFFFFF"></circle>
+
+</svg>
