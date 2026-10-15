@@ -1,4 +1,3 @@
-
 /* ==========================================================================
    Minesweeper - Canvas Renderer
    ========================================================================== */
@@ -9,7 +8,6 @@ import {
   BOARD_COLORS,
   ASSETS
 } from './config.js';
-
 
 /* ==========================================================================
    1. Animation Configuration
@@ -49,7 +47,6 @@ const easeInCubic = t => t * t * t;
 const easeOutCubic = t =>
   1 - Math.pow(1 - t, 3);
 
-
 /* ==========================================================================
    2. Renderer Class
    ========================================================================== */
@@ -68,7 +65,8 @@ export class MinesweeperRenderer {
 
     this.images = {
       flag: null,
-      mine: null
+      mine: null,
+      boom: null
     };
 
     // Standard reveal animations.
@@ -96,7 +94,6 @@ export class MinesweeperRenderer {
     this.resize();
   }
 
-
   /* ========================================================================
      3. Image Asset Loading
      ======================================================================== */
@@ -121,8 +118,13 @@ export class MinesweeperRenderer {
 
     loadImage(ASSETS.flag, 'flag');
     loadImage(ASSETS.mine, 'mine');
-  }
 
+    // Triggered mine artwork.
+    loadImage(
+      `${import.meta.env.BASE_URL}images/boom.png`,
+      'boom'
+    );
+  }
 
   /* ========================================================================
      4. Responsive Canvas Sizing
@@ -187,7 +189,6 @@ export class MinesweeperRenderer {
     this.draw();
   }
 
-
   /* ========================================================================
      5. Animation Management
      ======================================================================== */
@@ -206,7 +207,6 @@ export class MinesweeperRenderer {
     this.stopVictory();
   }
 
-
   captureBoardState() {
     const board = this.game.board;
 
@@ -218,7 +218,6 @@ export class MinesweeperRenderer {
       row.map(cell => cell.isRevealed)
     );
   }
-
 
   detectReveals() {
     const board = this.game.board;
@@ -288,7 +287,6 @@ export class MinesweeperRenderer {
     this.startAnimationLoop();
   }
 
-
   startAnimationLoop() {
     if (this.animationFrame !== null) {
       return;
@@ -316,7 +314,6 @@ export class MinesweeperRenderer {
 
     this.animationFrame = requestAnimationFrame(tick);
   }
-
 
   drawFallingTile(animation, now) {
     const elapsed = now - animation.startTime;
@@ -376,7 +373,6 @@ export class MinesweeperRenderer {
     );
   }
 
-
   drawTileFragment(
     x,
     y,
@@ -430,7 +426,6 @@ export class MinesweeperRenderer {
 
     ctx.restore();
   }
-
 
   /* ========================================================================
      6. Mine Explosion
@@ -528,7 +523,6 @@ export class MinesweeperRenderer {
     return EXPLOSION.duration;
   }
 
-
   stopExplosion() {
     if (this.explosionFrame !== null) {
       cancelAnimationFrame(this.explosionFrame);
@@ -537,7 +531,6 @@ export class MinesweeperRenderer {
 
     this.explosion = null;
   }
-
 
   startExplosionLoop() {
     if (this.explosionFrame !== null) {
@@ -567,7 +560,6 @@ export class MinesweeperRenderer {
 
     this.explosionFrame = requestAnimationFrame(tick);
   }
-
 
   drawExplosion(now) {
     const explosion = this.explosion;
@@ -755,7 +747,6 @@ export class MinesweeperRenderer {
     }
   }
 
-
   /* ========================================================================
      7. Victory Animation
      ======================================================================== */
@@ -826,7 +817,6 @@ export class MinesweeperRenderer {
     return VICTORY.duration;
   }
 
-
   stopVictory() {
     if (this.victoryFrame !== null) {
       cancelAnimationFrame(this.victoryFrame);
@@ -835,7 +825,6 @@ export class MinesweeperRenderer {
 
     this.victory = null;
   }
-
 
   startVictoryLoop() {
     if (this.victoryFrame !== null) {
@@ -865,7 +854,6 @@ export class MinesweeperRenderer {
 
     this.victoryFrame = requestAnimationFrame(tick);
   }
-
 
   /**
    * Render the victory wave and confetti.
@@ -901,7 +889,6 @@ export class MinesweeperRenderer {
         const y = row * CELL_SIZE;
 
         const distance = x + y;
-
         const delta = wavePosition - distance;
 
         if (
@@ -986,7 +973,6 @@ export class MinesweeperRenderer {
     }
   }
 
-
   /* ========================================================================
      8. Board Rendering
      ======================================================================== */
@@ -995,7 +981,6 @@ export class MinesweeperRenderer {
     this.detectReveals();
     this.renderBoard();
   }
-
 
   renderBoard() {
     const ctx = this.ctx;
@@ -1063,7 +1048,6 @@ export class MinesweeperRenderer {
     ctx.restore();
   }
 
-
   drawCell(row, col) {
     const ctx = this.ctx;
     const cell = this.game.board[row][col];
@@ -1073,7 +1057,16 @@ export class MinesweeperRenderer {
 
     const isLight = (row + col) % 2 === 0;
 
-    if (cell.isRevealed) {
+    // Identify the exact mine that ended the game.
+    const isTriggeredMine =
+      cell.isMine &&
+      this.game.triggeredMine?.row === row &&
+      this.game.triggeredMine?.col === col;
+
+    // Triggered mine gets a red background.
+    if (isTriggeredMine) {
+      ctx.fillStyle = '#D92D3A';
+    } else if (cell.isRevealed) {
       ctx.fillStyle = isLight
         ? BOARD_COLORS.revealedLight
         : BOARD_COLORS.revealedDark;
@@ -1114,14 +1107,26 @@ export class MinesweeperRenderer {
     }
 
     if (cell.isRevealed && cell.isMine) {
-      this.drawMine(x, y);
+      if (isTriggeredMine && this.images.boom) {
+        // Use the explosion image for the triggered mine.
+        const padding = CELL_SIZE * 0.05;
+
+        ctx.drawImage(
+          this.images.boom,
+          x + padding,
+          y + padding,
+          CELL_SIZE - padding * 2,
+          CELL_SIZE - padding * 2
+        );
+      } else {
+        this.drawMine(x, y);
+      }
     }
 
     if (cell.isFlagged && !cell.isRevealed) {
       this.drawFlag(x, y);
     }
   }
-
 
   /* ========================================================================
      9. Cell Contents
@@ -1141,7 +1146,6 @@ export class MinesweeperRenderer {
       y + CELL_SIZE / 2
     );
   }
-
 
   drawMine(x, y) {
     const ctx = this.ctx;
@@ -1215,7 +1219,6 @@ export class MinesweeperRenderer {
     ctx.fill();
   }
 
-
   drawFlag(x, y) {
     const ctx = this.ctx;
     const image = this.images.flag;
@@ -1263,7 +1266,6 @@ export class MinesweeperRenderer {
     ctx.stroke();
   }
 
-
   /* ========================================================================
      10. Hover Handling
      ======================================================================== */
@@ -1282,7 +1284,6 @@ export class MinesweeperRenderer {
     this.draw();
   }
 
-
   clearHover() {
     if (
       this.hoveredRow === -1 &&
@@ -1296,7 +1297,6 @@ export class MinesweeperRenderer {
 
     this.draw();
   }
-
 
   /* ========================================================================
      11. Input Coordinate Conversion

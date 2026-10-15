@@ -389,65 +389,168 @@ a:focus-visible {
     calc(16px + var(--safe-bottom))
     calc(16px + var(--safe-left));
 
-  background: rgba(0, 0, 0, 0.78);
+  background: rgba(10, 10, 25, 0.76);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 .game-over-popup {
-  width: min(100%, 420px);
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 20px;
+
+  width: min(100%, 310px);
   max-height: 100%;
   overflow-y: auto;
 
-  padding: 28px 24px;
+  padding: 30px 24px 26px;
 
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border: 3px solid var(--accent);
+  border-radius: 8px;
 
-  background: var(--panel-bg);
+  background: #252540;
   color: var(--text);
 
   text-align: center;
 
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    inset 0 0 0 3px #18182e,
+    inset 0 0 0 5px rgba(170, 215, 81, 0.25),
+    0 10px 0 rgba(0, 0, 0, 0.3),
+    0 18px 35px rgba(0, 0, 0, 0.5);
 }
 
 .game-over-popup h2 {
-  margin: 0 0 18px;
-  font-size: 28px;
+  margin: 0;
+
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(25px, 5vw, 32px);
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+
+  color: #f5f5f5;
+  text-shadow: 2px 3px 0 #394b32;
 }
 
 .pause-message {
-  margin: 0 0 22px;
-  color: #d0d0dd;
-  line-height: 1.5;
+  display: none;
 }
 
 #resumeButton,
 #gameOverOkButton {
-  min-height: 42px;
-  padding: 10px 20px;
+  min-width: 132px;
+  min-height: 44px;
 
-  border: none;
-  border-radius: 6px;
+  padding: 9px 24px;
 
-  background: var(--control-bg);
-  color: var(--text);
+  border: 2px solid #d0eb98;
+  border-radius: 5px;
 
-  font-size: 15px;
+  background: #527538;
+  color: #fff;
+
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+
+  box-shadow: 0 4px 0 #2e4321;
+
   cursor: pointer;
 }
 
-#resumeButton {
-  background: #527538;
-}
-
-#resumeButton:hover {
+#resumeButton:hover,
+#gameOverOkButton:hover {
   background: #668d49;
 }
 
-#gameOverOkButton:hover {
-  background: var(--control-hover);
+#resumeButton:active,
+#gameOverOkButton:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #2e4321;
 }
 
+/* Victory dialog: golden accent. */
+
+#gameOverOverlay[data-result="win"] .game-over-popup {
+  border-color: #ffd166;
+
+  box-shadow:
+    inset 0 0 0 3px #18182e,
+    inset 0 0 0 5px rgba(255, 209, 102, 0.25),
+    0 10px 0 rgba(0, 0, 0, 0.3),
+    0 18px 35px rgba(0, 0, 0, 0.5);
+}
+
+#gameOverOverlay[data-result="win"] h2 {
+  color: #ffe39a;
+  text-shadow: 2px 3px 0 #77531f;
+}
+
+/* Loss dialog: muted red accent. */
+
+#gameOverOverlay[data-result="loss"] .game-over-popup {
+  border-color: #e66b70;
+
+  box-shadow:
+    inset 0 0 0 3px #18182e,
+    inset 0 0 0 5px rgba(230, 107, 112, 0.2),
+    0 10px 0 rgba(0, 0, 0, 0.3),
+    0 18px 35px rgba(0, 0, 0, 0.5);
+}
+
+#gameOverOverlay[data-result="loss"] h2 {
+  color: #ffb5b8;
+  text-shadow: 2px 3px 0 #733139;
+}
+
+/* Compact dialogs for short landscape screens. */
+
+@media (max-height: 400px) and (orientation: landscape) {
+  .game-over-popup {
+    width: min(100%, 270px);
+    gap: 12px;
+    padding: 16px 20px;
+  }
+
+  .game-over-popup h2 {
+    font-size: 24px;
+  }
+
+  #resumeButton,
+  #gameOverOkButton {
+    min-height: 36px;
+    padding: 6px 20px;
+    font-size: 14px;
+  }
+}
+
+/* Pause dialog: calm and understated. */
+
+#pauseOverlay .game-over-popup h2 {
+  color: #c7c7d5;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-shadow: 1px 2px 0 #18182e;
+}
+
+/* Loss dialog: subdued, not overly dramatic. */
+
+#gameOverOverlay[data-result="loss"] h2 {
+  color: #d7b6b8;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-shadow: 1px 2px 0 #38252d;
+}
 
 /* ==========================================================================
    10. Desktop

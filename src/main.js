@@ -7,6 +7,7 @@
    - User interface
    - Canvas rendering
    - Mouse and touchscreen input
+   - Keyboard pause/resume
    - Audio
    - Responsive sizing and orientation changes
    - Victory and loss animation sequencing
@@ -327,8 +328,44 @@ ui.onDifficultyChange = (difficulty) => {
 
 
 /* ==========================================================================
-   8. Resize and Orientation Listeners
+   8. Keyboard, Resize, and Orientation Listeners
    ========================================================================== */
+
+/**
+ * Toggle pause/resume with Spacebar.
+ *
+ * Ignore interactive controls so Space retains
+ * its normal behavior for buttons and form fields.
+ */
+function handleKeyDown(event) {
+  if (event.code !== 'Space' || event.repeat) {
+    return;
+  }
+
+  const target = event.target;
+
+  if (
+    target instanceof Element &&
+    target.closest(
+      'input, textarea, select, button, a, [contenteditable="true"]'
+    )
+  ) {
+    return;
+  }
+
+  if (!game || game.gameOver) {
+    return;
+  }
+
+  event.preventDefault();
+  game.togglePause();
+}
+
+document.addEventListener(
+  'keydown',
+  handleKeyDown
+);
+
 
 const resizeObserver = new ResizeObserver(() => {
   scheduleResize();
@@ -394,6 +431,11 @@ if (import.meta.hot) {
     }
 
     resizeObserver.disconnect();
+
+    document.removeEventListener(
+      'keydown',
+      handleKeyDown
+    );
 
     window.removeEventListener(
       'resize',

@@ -308,8 +308,12 @@ export class MinesweeperUI {
     this.hideDialogs();
 
     this.gameOverMessage.textContent = won
-      ? 'You Win!'
-      : 'You Lose!';
+      ? 'YOU WIN!'
+      : 'GAME OVER';
+
+    this.gameOverOverlay.dataset.result = won
+      ? 'win'
+      : 'loss';
 
     this.gameOverOverlay.classList.remove('hidden');
     this.activeDialog = 'gameOver';
