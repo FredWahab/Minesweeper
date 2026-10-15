@@ -10,6 +10,7 @@
    - Pause and resume
    - Revealing and flagging cells
    - Win and loss detection
+   - Tracking the mine responsible for a loss
    - Notifying the interface of state changes
 
    Board rules are handled separately by board.js.
@@ -88,6 +89,10 @@ export class MinesweeperGame {
     this.isPaused = false;
     this.flagMode = false;
 
+    // Coordinates of the mine responsible for a loss.
+    // Null until a mine is triggered.
+    this.triggeredMine = null;
+
     this.secondsElapsed = 0;
 
     this.notify('newGame');
@@ -141,6 +146,16 @@ export class MinesweeperGame {
       this.board = transposedBoard;
       this.rows = settings.rows;
       this.cols = settings.cols;
+
+      // Keep the triggered mine aligned with the transposed board.
+      if (this.triggeredMine) {
+        const { row, col } = this.triggeredMine;
+
+        this.triggeredMine = {
+          row: col,
+          col: row
+        };
+      }
     }
 
     this.orientation = newOrientation;
@@ -316,6 +331,10 @@ export class MinesweeperGame {
     const result = revealCell(this.board, row, col);
 
     if (result.hitMine) {
+      // Record the exact location of the triggered mine.
+      // The renderer will use this as the explosion origin.
+      this.triggeredMine = { row, col };
+
       this.gameOver = true;
       this.won = false;
 

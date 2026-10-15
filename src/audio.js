@@ -5,6 +5,8 @@
    Responsible for:
    - Loading dedicated sound effect files
    - Playing reveal, flag, win, and loss sounds
+   - Balancing sound effect volumes
+   - Prioritizing important game events
    - Managing mute state
    - Supporting overlapping sound effects
    - Handling mobile browser audio restrictions
@@ -27,16 +29,22 @@ const SOUND_FILES = Object.freeze({
   lose: ASSETS.loseSound
 });
 
-// Relative volume for each sound effect.
+// Individual playback volume adjustments.
 const SOUND_VOLUMES = Object.freeze({
-  reveal: 0.35,
-  flag: 0.45,
-  win: 0.6,
-  lose: 0.55
+  reveal: 0.70,
+  flag: 0.55,
+  win: 0.70,
+  lose: 0.75
 });
 
-// Allow several copies of a sound to play without cutting each other off.
+// Limit overlapping effects to prevent excessive sound stacking.
 const MAX_SIMULTANEOUS_SOUNDS = 4;
+
+// Win and loss effects take priority over ordinary gameplay sounds.
+const PRIORITY_SOUNDS = new Set([
+  'win',
+  'lose'
+]);
 
 
 /* ==========================================================================
@@ -47,11 +55,11 @@ export class MinesweeperAudio {
   constructor() {
     this.muted = false;
 
-    // Stores preloaded audio instances for each sound.
+    // Preloaded audio templates.
     this.sounds = new Map();
 
-    // Track active sounds for cleanup and mute behavior.
-    this.activeSounds = new Set();
+    // Active playback instances, mapped to their sound names.
+    this.activeSounds = new Map();
 
     this.loadSounds();
   }
@@ -64,8 +72,8 @@ export class MinesweeperAudio {
   /**
    * Prepare sound files for playback.
    *
-   * preload="auto" requests that the browser load audio ahead
-   * of time, although mobile browsers may defer loading.
+   * Mobile browsers may defer loading until the
+   * user interacts with the page.
    */
   loadSounds() {
     for (const [name, source] of Object.entries(SOUND_FILES)) {
@@ -77,7 +85,6 @@ export class MinesweeperAudio {
 
       this.sounds.set(name, audio);
 
-      // Request loading without starting playback.
       audio.load();
     }
   }
@@ -97,7 +104,9 @@ export class MinesweeperAudio {
    * - lose
    */
   play(name) {
-    if (this.muted) return;
+    if (this.muted) {
+      return;
+    }
 
     const source = this.sounds.get(name);
 
@@ -106,18 +115,21 @@ export class MinesweeperAudio {
       return;
     }
 
-    // Limit simultaneous playback to avoid excessive sound stacking.
-    if (this.activeSounds.size >= MAX_SIMULTANEOUS_SOUNDS) {
+    const isPriority = PRIORITY_SOUNDS.has(name);
+
+    // Game-ending effects should not compete with gameplay clicks.
+    if (isPriority) {
+      this.stopAll();
+    } else if (
+      this.activeSounds.size >= MAX_SIMULTANEOUS_SOUNDS
+    ) {
       return;
     }
 
-    // Clone the preloaded audio element so repeated effects
-    // can overlap without interrupting one another.
+    // Clone the preloaded element to allow overlapping effects.
     const audio = source.cloneNode(true);
 
     audio.volume = SOUND_VOLUMES[name] ?? 0.5;
-
-    this.activeSounds.add(audio);
 
     const cleanup = () => {
       this.activeSounds.delete(audio);
@@ -126,17 +138,25 @@ export class MinesweeperAudio {
       audio.removeEventListener('error', cleanup);
     };
 
+    this.activeSounds.set(audio, name);
+
     audio.addEventListener('ended', cleanup);
     audio.addEventListener('error', cleanup);
 
-    // Browsers may reject playback before user interaction.
-    // Handle this gracefully rather than generating errors.
-    const playback = audio.play();
+    // Browsers may reject playback until user interaction.
+    try {
+      const playback = audio.play();
 
-    if (playback && typeof playback.catch === 'function') {
-      playback.catch(() => {
-        cleanup();
-      });
+      if (
+        playback &&
+        typeof playback.catch === 'function'
+      ) {
+        playback.catch(() => {
+          cleanup();
+        });
+      }
+    } catch (error) {
+      cleanup();
     }
   }
 
@@ -148,7 +168,7 @@ export class MinesweeperAudio {
   /**
    * Enable or disable sound effects.
    *
-   * Muting immediately silences currently playing effects.
+   * Muting immediately stops currently playing sounds.
    */
   setMuted(muted) {
     this.muted = Boolean(muted);
@@ -182,14 +202,17 @@ export class MinesweeperAudio {
      ======================================================================== */
 
   /**
-   * Stop any sound effects currently playing.
-   *
-   * Useful when restarting the game or muting audio.
+   * Stop all active playback instances.
    */
   stopAll() {
-    for (const audio of this.activeSounds) {
+    for (const audio of this.activeSounds.keys()) {
       audio.pause();
-      audio.currentTime = 0;
+
+      try {
+        audio.currentTime = 0;
+      } catch (error) {
+        // Some browsers restrict seeking during loading.
+      }
     }
 
     this.activeSounds.clear();

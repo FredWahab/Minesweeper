@@ -9,6 +9,7 @@
    - Mouse and touchscreen input
    - Audio
    - Responsive sizing and orientation changes
+   - Victory and loss animation sequencing
    ========================================================================== */
 
 import './style.css';
@@ -39,9 +40,105 @@ let audio;
 let resizeFrame = null;
 let orientationFrame = null;
 
+// Pending game-over dialog after a victory or explosion.
+let gameOverTimeout = null;
+
 
 /* ==========================================================================
-   2. Game State Events
+   2. Game-Over Animation Management
+   ========================================================================== */
+
+/**
+ * Cancel a pending game-over dialog and any active
+ * victory or loss animation.
+ */
+function cancelGameOverSequence() {
+  if (gameOverTimeout !== null) {
+    clearTimeout(gameOverTimeout);
+    gameOverTimeout = null;
+  }
+
+  if (renderer) {
+    renderer.stopExplosion();
+    renderer.stopVictory();
+  }
+}
+
+
+/**
+ * Show the game-over dialog after the animation.
+ *
+ * A zero duration displays the dialog immediately,
+ * which supports reduced-motion preferences.
+ */
+function scheduleGameOverDialog(won, duration) {
+  if (duration <= 0) {
+    ui.showGameOverDialog(won);
+    return;
+  }
+
+  gameOverTimeout = setTimeout(() => {
+    gameOverTimeout = null;
+
+    // Prevent a stale dialog after restarting.
+    if (!game.gameOver || game.won !== won) {
+      return;
+    }
+
+    ui.showGameOverDialog(won);
+  }, duration);
+}
+
+
+/**
+ * Start the loss explosion.
+ */
+function handleLoss() {
+  audio.play('lose');
+
+  const duration = renderer.startExplosion();
+
+  scheduleGameOverDialog(false, duration);
+}
+
+
+/**
+ * Start the victory celebration.
+ */
+function handleVictory() {
+  audio.play('win');
+
+  const duration = renderer.startVictory();
+
+  scheduleGameOverDialog(true, duration);
+}
+
+
+/**
+ * Complete an interrupted animation.
+ *
+ * A resize or orientation change can reset the
+ * canvas while an animation is playing.
+ */
+function finishInterruptedGameOver() {
+  if (gameOverTimeout === null) {
+    return;
+  }
+
+  clearTimeout(gameOverTimeout);
+  gameOverTimeout = null;
+
+  renderer.stopExplosion();
+  renderer.stopVictory();
+
+  if (game.gameOver) {
+    ui.showGameOverDialog(game.won);
+  }
+}
+
+
+/* ==========================================================================
+   3. Game State Events
    ========================================================================== */
 
 /**
@@ -56,6 +153,9 @@ function handleGameEvent(eventName) {
 
   switch (eventName) {
     case 'newGame':
+      cancelGameOverSequence();
+      renderer.cancelAnimations();
+
       ui.hideDialogs();
 
       if (input) {
@@ -74,13 +174,11 @@ function handleGameEvent(eventName) {
       break;
 
     case 'win':
-      audio.play('win');
-      ui.showGameOverDialog(true);
+      handleVictory();
       break;
 
     case 'lose':
-      audio.play('lose');
-      ui.showGameOverDialog(false);
+      handleLoss();
       break;
 
     case 'paused':
@@ -96,6 +194,7 @@ function handleGameEvent(eventName) {
         input.reset();
       }
 
+      finishInterruptedGameOver();
       scheduleResize();
       break;
 
@@ -109,14 +208,14 @@ function handleGameEvent(eventName) {
 
 
 /* ==========================================================================
-   3. Responsive Canvas Sizing
+   4. Responsive Canvas Sizing
    ========================================================================== */
 
 /**
  * Resize on the next animation frame.
  *
- * This allows the browser to update CSS layout before the
- * Canvas renderer measures its available space.
+ * This allows the browser to update CSS layout
+ * before measuring the available canvas space.
  */
 function scheduleResize() {
   if (!renderer) {
@@ -129,20 +228,24 @@ function scheduleResize() {
 
   resizeFrame = requestAnimationFrame(() => {
     resizeFrame = null;
+
+    // Canvas resizing cancels active animations.
+    finishInterruptedGameOver();
+
     renderer.resize();
   });
 }
 
 
 /* ==========================================================================
-   4. Orientation Handling
+   5. Orientation Handling
    ========================================================================== */
 
 /**
  * Check whether the screen orientation has changed.
  *
- * The existing game is preserved and transposed if necessary.
- * Active games pause automatically after rotation.
+ * The existing game is preserved and transposed
+ * if necessary. Active games pause after rotation.
  */
 function handleOrientationChange() {
   if (!game) {
@@ -152,7 +255,6 @@ function handleOrientationChange() {
   const orientation = getScreenOrientation();
 
   if (orientation !== game.orientation) {
-    // Pause before rearranging an active board.
     if (!game.firstClick && !game.gameOver) {
       game.pauseGame();
     }
@@ -165,8 +267,8 @@ function handleOrientationChange() {
 
 
 /**
- * Defer orientation processing until the viewport dimensions
- * have updated.
+ * Defer orientation processing until the viewport
+ * dimensions have updated.
  */
 function scheduleOrientationCheck() {
   if (orientationFrame !== null) {
@@ -181,7 +283,7 @@ function scheduleOrientationCheck() {
 
 
 /* ==========================================================================
-   5. Initialize Application
+   6. Initialize Application
    ========================================================================== */
 
 audio = new MinesweeperAudio();
@@ -203,33 +305,31 @@ input = new MinesweeperInput(
 
 
 /* ==========================================================================
-   6. Interface Callbacks
+   7. Interface Callbacks
    ========================================================================== */
 
 /**
- * Start a new game at the currently selected difficulty.
+ * Start a new game at the selected difficulty.
  */
 ui.onNewGame = () => {
+  cancelGameOverSequence();
   game.newGame();
 };
 
 
 /**
- * Start a new game when the difficulty changes.
+ * Start a new game when difficulty changes.
  */
 ui.onDifficultyChange = (difficulty) => {
+  cancelGameOverSequence();
   game.newGame(difficulty);
 };
 
 
 /* ==========================================================================
-   7. Resize and Orientation Listeners
+   8. Resize and Orientation Listeners
    ========================================================================== */
 
-/**
- * ResizeObserver detects changes to the actual board container,
- * including changes caused by mobile browser UI.
- */
 const resizeObserver = new ResizeObserver(() => {
   scheduleResize();
 });
@@ -237,18 +337,12 @@ const resizeObserver = new ResizeObserver(() => {
 resizeObserver.observe(ui.boardContainer);
 
 
-/**
- * Window resizing can also indicate a phone rotation.
- */
 window.addEventListener(
   'resize',
   scheduleOrientationCheck
 );
 
 
-/**
- * Some mobile browsers provide an explicit orientation event.
- */
 window.addEventListener(
   'orientationchange',
   scheduleOrientationCheck
@@ -257,11 +351,8 @@ window.addEventListener(
 
 /**
  * Pause active games when the page becomes hidden.
- *
- * This prevents the timer from continuing while the player
- * is in another application or browser tab.
  */
-document.addEventListener('visibilitychange', () => {
+function handleVisibilityChange() {
   if (
     document.hidden &&
     game &&
@@ -270,11 +361,16 @@ document.addEventListener('visibilitychange', () => {
   ) {
     game.pauseGame();
   }
-});
+}
+
+document.addEventListener(
+  'visibilitychange',
+  handleVisibilityChange
+);
 
 
 /* ==========================================================================
-   8. Initial Render
+   9. Initial Render
    ========================================================================== */
 
 ui.update();
@@ -282,11 +378,13 @@ scheduleResize();
 
 
 /* ==========================================================================
-   9. Development Cleanup
+   10. Development Cleanup
    ========================================================================== */
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    cancelGameOverSequence();
+
     if (resizeFrame !== null) {
       cancelAnimationFrame(resizeFrame);
     }
@@ -305,6 +403,11 @@ if (import.meta.hot) {
     window.removeEventListener(
       'orientationchange',
       scheduleOrientationCheck
+    );
+
+    document.removeEventListener(
+      'visibilitychange',
+      handleVisibilityChange
     );
 
     input.destroy();
