@@ -360,12 +360,12 @@ a:focus-visible {
 }
 
 .game-footer a {
-  color: #d6eab7;
+  color: #ffffff;
   text-decoration: none;
 }
 
 .game-footer a:hover {
-  color: #ffffff;
+  color: #d6eab7;
   text-decoration: underline;
 }
 
